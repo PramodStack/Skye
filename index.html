@@ -598,11 +598,43 @@ body.is-night{ --sky-tint:rgba(5,10,30,.15); }
     <div class="gps-card" id="gpsCard">
       <div class="gps-icon-wrap" id="gpsIcon">📍</div>
       <div class="gps-title" id="gpsTitle">Know Your Sky</div>
-      <p class="gps-desc" id="gpsDesc">Allow Skye to access your precise GPS location to show accurate weather — even for your village or neighbourhood.</p>
-      <div class="gps-accuracy-badge">📡 Accurate to within 10 metres</div>
+      <p class="gps-desc" id="gpsDesc">Allow Skye to use your device GPS for pinpoint accuracy — works for any village, street or neighbourhood.</p>
+
+      <!-- Accuracy meter (hidden until GPS fires) -->
+      <div id="gpsAccMeter" style="display:none;margin-bottom:1.1rem">
+        <div style="display:flex;justify-content:space-between;font-size:.62rem;color:var(--muted);margin-bottom:.4rem">
+          <span>GPS Accuracy</span><span id="gpsAccLabel" style="color:var(--accent)">—</span>
+        </div>
+        <div style="height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden">
+          <div id="gpsAccBar" style="height:100%;border-radius:3px;background:linear-gradient(90deg,#4caf7d,#00e5ff);width:0%;transition:width .6s ease,background .6s ease"></div>
+        </div>
+        <div id="gpsCoordsDisplay" style="font-size:.6rem;color:var(--dim);margin-top:.4rem;font-family:monospace;letter-spacing:.04em">—</div>
+      </div>
+
       <button class="gps-btn-allow" id="gpsBtnAllow" onclick="requestGPS()">📍 Use My Exact Location</button>
-      <button class="gps-btn-skip" onclick="skipGPS()">Skip — I'll search manually</button>
-      <p class="gps-note">Your location is only used to fetch weather data.<br>It is never stored or shared.</p>
+      <button class="gps-btn-use" id="gpsBtnUse" onclick="useCurrentGPS()" style="display:none;width:100%;padding:.72rem;background:rgba(79,195,247,.12);border:1px solid rgba(79,195,247,.35);border-radius:12px;font-family:'Outfit',sans-serif;font-size:.8rem;font-weight:600;color:var(--accent);cursor:pointer;margin-bottom:.65rem;transition:all .2s">✓ Use This Location</button>
+
+      <div style="display:flex;align-items:center;gap:.6rem;margin:.4rem 0 .8rem">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:.6rem;color:var(--dim);letter-spacing:.1em">OR</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+
+      <!-- Manual coords paste from Google Maps -->
+      <div style="margin-bottom:.7rem">
+        <div style="font-size:.6rem;color:var(--muted);letter-spacing:.08em;margin-bottom:.4rem">PASTE COORDINATES FROM GOOGLE MAPS</div>
+        <div style="display:flex;gap:.4rem">
+          <input id="manualCoords" type="text" placeholder="e.g. 20.2961, 85.8245"
+            style="flex:1;background:rgba(255,255,255,.06);border:1px solid var(--border2);border-radius:8px;padding:.55rem .8rem;font-family:'Outfit',sans-serif;font-size:.78rem;color:var(--text);outline:none;transition:border-color .2s"
+            onfocus="this.style.borderColor='rgba(79,195,247,.5)'" onblur="this.style.borderColor=''" 
+            onkeydown="if(event.key==='Enter')useManualCoords()"/>
+          <button onclick="useManualCoords()" style="background:rgba(79,195,247,.15);border:1px solid rgba(79,195,247,.3);border-radius:8px;padding:.55rem .9rem;font-size:.75rem;font-weight:600;color:var(--accent);cursor:pointer;white-space:nowrap;font-family:'Outfit',sans-serif;transition:all .2s" onmouseover="this.style.background='rgba(79,195,247,.25)'" onmouseout="this.style.background='rgba(79,195,247,.15)'">→ Go</button>
+        </div>
+        <div style="font-size:.58rem;color:var(--dim);margin-top:.35rem">Open Google Maps → long press your location → copy the coordinates shown</div>
+      </div>
+
+      <button class="gps-btn-skip" onclick="skipGPS()">Skip — use approximate location</button>
+      <p class="gps-note">Your location is only used to fetch weather.<br>Never stored or shared.</p>
     </div>
   </div>
 
@@ -1490,13 +1522,67 @@ document.addEventListener('click', e=>{
 function showGPSModal(){ document.getElementById('gpsModal').classList.add('show'); }
 function hideGPSModal(){ document.getElementById('gpsModal').classList.remove('show'); }
 
-function showBanner(city, lat, lon, source){
+let _watchId = null;
+let _bestPos = null;   // best GPS fix so far
+
+function showBanner(city, lat, lon, source, accMetres){
   const b = document.getElementById('locationBanner');
-  document.getElementById('bannerCity').textContent = city || 'Location found';
-  document.getElementById('bannerCoords').textContent = `${parseFloat(lat).toFixed(4)}°N, ${parseFloat(lon).toFixed(4)}°E`;
-  document.getElementById('bannerAcc').textContent = source === 'gps' ? '📡 GPS · Exact' : '🌐 IP · Approx';
+  document.getElementById('bannerCity').textContent = city || 'Your location';
+  const coordText = `${parseFloat(lat).toFixed(5)}°N  ${parseFloat(lon).toFixed(5)}°E`;
+  const accText   = accMetres ? ` · ±${Math.round(accMetres)}m` : '';
+  document.getElementById('bannerCoords').textContent = coordText + accText;
+  document.getElementById('bannerAcc').textContent =
+    source === 'gps'    ? `📡 GPS${accMetres ? ' ±'+Math.round(accMetres)+'m' : ''}` :
+    source === 'manual' ? '📌 Manual' : '🌐 IP · Approx';
   b.classList.add('show');
-  setTimeout(()=> b.classList.remove('show'), 6000);
+  setTimeout(()=> b.classList.remove('show'), 8000);
+}
+
+function updateAccMeter(acc){
+  // acc in metres — show a quality bar: ≤10m=great, ≤50m=good, ≤200m=ok, >200m=poor
+  const meter   = document.getElementById('gpsAccMeter');
+  const label   = document.getElementById('gpsAccLabel');
+  const bar     = document.getElementById('gpsAccBar');
+  const display = document.getElementById('gpsCoordsDisplay');
+  if(!meter) return;
+  meter.style.display = 'block';
+  let pct, color, txt;
+  if(acc <= 10)       { pct=100; color='#4caf7d'; txt=`±${Math.round(acc)}m — Excellent 🎯`; }
+  else if(acc <= 50)  { pct=80;  color='#8bc34a'; txt=`±${Math.round(acc)}m — Very Good`; }
+  else if(acc <= 150) { pct=60;  color='#f0c040'; txt=`±${Math.round(acc)}m — Good`; }
+  else if(acc <= 500) { pct=35;  color='#ff9800'; txt=`±${Math.round(acc)}m — Moderate`; }
+  else                { pct=15;  color='#e03030'; txt=`±${Math.round(acc)}m — Poor (move outdoors)`; }
+  bar.style.width      = pct + '%';
+  bar.style.background = `linear-gradient(90deg,${color},#00e5ff)`;
+  label.textContent    = txt;
+  label.style.color    = color;
+  if(_bestPos) display.textContent = `${_bestPos.latitude.toFixed(6)}, ${_bestPos.longitude.toFixed(6)}`;
+}
+
+function useCurrentGPS(){
+  if(!_bestPos) return;
+  if(_watchId){ navigator.geolocation.clearWatch(_watchId); _watchId=null; }
+  hideGPSModal();
+  const q = _bestPos.latitude.toFixed(6) + ',' + _bestPos.longitude.toFixed(6);
+  fetchWeather(q);
+  setTimeout(()=> showBanner('Your location', _bestPos.latitude, _bestPos.longitude, 'gps', _bestPos.accuracy), 900);
+}
+
+function useManualCoords(){
+  const raw = document.getElementById('manualCoords').value.trim();
+  // Accept formats: "20.2961, 85.8245" or "20.2961 85.8245" or "20°17'45"N 85°49'28"E"
+  const match = raw.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+  if(!match){ 
+    document.getElementById('manualCoords').style.borderColor='rgba(255,80,80,.6)';
+    setTimeout(()=>document.getElementById('manualCoords').style.borderColor='',1500);
+    return; 
+  }
+  const lat = parseFloat(match[1]), lon = parseFloat(match[2]);
+  if(lat < -90 || lat > 90 || lon < -180 || lon > 180){ return; }
+  if(_watchId){ navigator.geolocation.clearWatch(_watchId); _watchId=null; }
+  hideGPSModal();
+  fetchWeather(lat.toFixed(6) + ',' + lon.toFixed(6));
+  setTimeout(()=> showBanner('Manual location', lat, lon, 'manual'), 900);
 }
 
 function requestGPS(){
@@ -1505,40 +1591,56 @@ function requestGPS(){
   const title = document.getElementById('gpsTitle');
   const desc  = document.getElementById('gpsDesc');
   const btn   = document.getElementById('gpsBtnAllow');
+  const useBtn= document.getElementById('gpsBtnUse');
 
   card.classList.add('requesting');
   icon.textContent  = '🔄';
-  title.textContent = 'Locating You…';
-  desc.textContent  = 'Please allow location access in the browser prompt. This gives pinpoint accuracy.';
-  btn.textContent   = '⏳ Waiting for permission…';
-  btn.disabled      = true;
+  title.textContent = 'Locking onto GPS…';
+  desc.textContent  = 'Waiting for your device GPS. Accuracy improves over a few seconds — stay still for best results.';
+  btn.style.display = 'none';
 
-  navigator.geolocation.getCurrentPosition(
+  if(_watchId){ navigator.geolocation.clearWatch(_watchId); }
+
+  // Use watchPosition so accuracy IMPROVES in real time
+  _watchId = navigator.geolocation.watchPosition(
     pos => {
-      hideGPSModal();
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const acc = pos.coords.accuracy; // metres
-      const q   = lat.toFixed(6) + ',' + lon.toFixed(6);
-      // Reverse geocode via WeatherAPI (it returns local place name)
-      fetchWeather(q).then ? fetchWeather(q) : fetchWeather(q);
-      // Show success banner after weather loads
-      setTimeout(()=> showBanner('Your location', lat, lon, 'gps'), 800);
+      _bestPos = pos.coords;
+      updateAccMeter(pos.coords.accuracy);
+
+      // Show "Use This Location" button once we have ANY fix
+      useBtn.style.display = 'block';
+
+      // Auto-confirm if accuracy is 50m or better
+      if(pos.coords.accuracy <= 50){
+        navigator.geolocation.clearWatch(_watchId); _watchId = null;
+        useCurrentGPS();
+      }
     },
     err => {
+      if(_watchId){ navigator.geolocation.clearWatch(_watchId); _watchId=null; }
       card.classList.remove('requesting');
       icon.textContent  = '⚠️';
-      title.textContent = 'Permission Denied';
-      let msg = 'Location access was blocked. ';
-      if(err.code === 1) msg += 'Please allow it in your browser settings.';
-      if(err.code === 2) msg += 'GPS signal not available.';
-      if(err.code === 3) msg += 'Request timed out. Try again.';
+      title.textContent = 'Location Blocked';
+      btn.style.display = 'block';
+      useBtn.style.display = 'none';
+      let msg = '';
+      if(err.code === 1) msg = 'Permission denied. Click the 🔒 icon in your browser address bar → Site settings → Allow Location.';
+      if(err.code === 2) msg = 'GPS unavailable. Try moving near a window or use manual coordinates below.';
+      if(err.code === 3) msg = 'GPS timed out. Try again or paste coordinates from Google Maps.';
       desc.textContent  = msg;
       btn.textContent   = '🔄 Try Again';
-      btn.disabled      = false;
     },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );
+
+  // Stop watching after 20s max — use best fix obtained
+  setTimeout(()=>{
+    if(_watchId){ navigator.geolocation.clearWatch(_watchId); _watchId=null; }
+    if(_bestPos && !document.getElementById('gpsModal').classList.contains('show') === false){
+      // Still showing modal — auto-use best position
+      if(_bestPos) useCurrentGPS();
+    }
+  }, 20000);
 }
 
 function skipGPS(){
