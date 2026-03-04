@@ -336,6 +336,249 @@ body.is-night{ --sky-tint:rgba(5,10,30,.15); }
 .banner-text span{font-size:.65rem;color:var(--muted)}
 .banner-acc{font-size:.6rem;color:var(--accent);background:rgba(79,195,247,.08);border:1px solid rgba(79,195,247,.18);border-radius:8px;padding:.15rem .5rem;white-space:nowrap}
 
+
+/* ══ HOURLY FORECAST STRIP ══ */
+.forecast-panel{
+  border:1px solid var(--border2);border-top:none;
+  border-radius:0 0 28px 28px;
+  background:rgba(0,0,0,.18);backdrop-filter:blur(20px);
+  padding:1.6rem 0 2rem;
+  overflow:hidden;
+}
+.forecast-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 2.2rem .9rem;
+}
+.forecast-title{
+  font-size:.55rem;letter-spacing:.3em;text-transform:uppercase;color:var(--accent);
+}
+.forecast-tabs{display:flex;gap:.3rem}
+.ftab{
+  padding:.25rem .75rem;border-radius:20px;font-size:.62rem;
+  font-family:'Outfit',sans-serif;letter-spacing:.06em;cursor:pointer;
+  border:1px solid var(--border);background:transparent;color:var(--muted);
+  transition:all .2s;
+}
+.ftab.active{background:rgba(79,195,247,.12);border-color:rgba(79,195,247,.4);color:var(--accent);}
+.ftab:hover:not(.active){background:rgba(255,255,255,.06);color:var(--text);}
+
+/* Scrollable track */
+.forecast-track-wrap{
+  position:relative;
+  overflow:hidden;
+}
+.forecast-track-wrap::before,
+.forecast-track-wrap::after{
+  content:'';position:absolute;top:0;bottom:0;width:48px;z-index:5;pointer-events:none;
+}
+.forecast-track-wrap::before{left:0;background:linear-gradient(to right,rgba(2,8,24,.9),transparent);}
+.forecast-track-wrap::after{right:0;background:linear-gradient(to left,rgba(2,8,24,.9),transparent);}
+.forecast-track{
+  display:flex;gap:0;
+  overflow-x:auto;
+  scroll-behavior:smooth;
+  scrollbar-width:none;
+  padding:0 2.2rem .4rem;
+  cursor:grab;
+  user-select:none;
+}
+.forecast-track::-webkit-scrollbar{display:none}
+.forecast-track.grabbing{cursor:grabbing;}
+
+/* Each slot */
+.fslot{
+  flex-shrink:0;
+  width:88px;
+  display:flex;flex-direction:column;align-items:center;
+  padding:.85rem .4rem .7rem;
+  border-right:1px solid var(--border);
+  position:relative;
+  transition:background .2s;
+  cursor:default;
+}
+.fslot:last-child{border-right:none}
+.fslot:hover{background:rgba(79,195,247,.05);}
+.fslot.now{background:rgba(79,195,247,.08);border-top:2px solid var(--accent);}
+.fslot.now::after{
+  content:'NOW';position:absolute;top:-1px;left:50%;transform:translateX(-50%);
+  font-size:.42rem;letter-spacing:.18em;color:var(--accent);font-weight:700;
+  background:var(--accent);color:#020818;padding:.05rem .35rem;border-radius:0 0 4px 4px;
+}
+
+.fslot-time{font-size:.62rem;font-weight:600;color:var(--muted);margin-bottom:.5rem;letter-spacing:.04em;}
+.fslot.now .fslot-time{color:var(--accent);}
+.fslot-icon{width:32px;height:32px;object-fit:contain;margin-bottom:.4rem;filter:drop-shadow(0 0 4px rgba(79,195,247,.3));}
+.fslot-temp{
+  font-size:1.15rem;font-weight:300;color:var(--text);line-height:1;margin-bottom:.3rem;
+}
+.fslot-cond{
+  font-size:.52rem;color:var(--muted);text-align:center;line-height:1.3;
+  height:2.2em;overflow:hidden;
+}
+
+/* Mini detail row inside slot */
+.fslot-details{
+  display:flex;flex-direction:column;gap:.18rem;
+  margin-top:.5rem;width:100%;
+}
+.fslot-det{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:.52rem;color:var(--dim);
+}
+.fslot-det span:last-child{color:var(--muted);}
+
+/* Temperature sparkline */
+.sparkline-wrap{
+  padding:.6rem 2.2rem 0;
+  position:relative;height:52px;
+}
+.sparkline-svg{width:100%;height:100%}
+
+/* Rain chance bar */
+.fslot-rain{
+  width:70%;height:3px;border-radius:2px;
+  background:rgba(255,255,255,.06);margin-top:.4rem;overflow:hidden;
+}
+.fslot-rain-fill{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,#4fc3f7,#00e5ff);
+  transition:width .8s ease;
+}
+
+/* Day divider */
+.fday-divider{
+  flex-shrink:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:0 .6rem;gap:.3rem;
+  border-right:1px solid rgba(79,195,247,.15);
+  min-width:36px;
+}
+.fday-label{
+  font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(79,195,247,.5);writing-mode:vertical-rl;
+  transform:rotate(180deg);
+}
+
+
+/* ══ FORECAST HOVER TOOLTIP ══ */
+#fTooltip{
+  position:fixed;
+  z-index:9970;
+  pointer-events:none;
+  opacity:0;
+  transform:translateY(8px) scale(.95);
+  transition:opacity .18s ease, transform .18s cubic-bezier(.16,1,.3,1);
+  will-change:opacity,transform;
+  min-width:220px;
+  max-width:260px;
+}
+#fTooltip.show{
+  opacity:1;
+  transform:translateY(0) scale(1);
+}
+.ftt-card{
+  background:linear-gradient(145deg,rgba(8,18,42,.98),rgba(4,11,26,.99));
+  border:1px solid rgba(79,195,247,.28);
+  border-radius:16px;
+  padding:1.1rem 1.2rem 1rem;
+  box-shadow:0 20px 50px rgba(0,0,0,.6),0 0 0 1px rgba(79,195,247,.06),0 0 24px rgba(79,195,247,.1);
+  backdrop-filter:blur(24px);
+  position:relative;
+}
+/* Arrow pointer */
+.ftt-card::after{
+  content:'';
+  position:absolute;
+  bottom:-7px;left:50%;transform:translateX(-50%);
+  width:14px;height:7px;
+  background:rgba(8,18,42,.98);
+  clip-path:polygon(0 0,100% 0,50% 100%);
+  border-left:1px solid rgba(79,195,247,.28);
+  border-right:1px solid rgba(79,195,247,.28);
+}
+.ftt-card.flip-up::after{
+  bottom:auto;top:-7px;
+  clip-path:polygon(50% 0,0 100%,100% 100%);
+}
+.ftt-top{
+  display:flex;align-items:center;gap:.7rem;margin-bottom:.8rem;
+  padding-bottom:.75rem;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.ftt-icon{width:36px;height:36px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(79,195,247,.4));}
+.ftt-info{}
+.ftt-time{font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+.ftt-cond{font-family:'Playfair Display',serif;font-size:.95rem;font-style:italic;color:var(--text);line-height:1.2;}
+.ftt-temp-row{
+  display:flex;align-items:baseline;gap:.4rem;margin-bottom:.7rem;
+}
+.ftt-temp{
+  font-size:2.4rem;font-weight:100;letter-spacing:-.04em;
+  background:linear-gradient(180deg,#fff 0%,rgba(255,255,255,.6) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  line-height:1;
+}
+.ftt-feels{font-size:.65rem;color:var(--muted);align-self:flex-end;margin-bottom:.2rem;}
+/* Stats grid */
+.ftt-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:.45rem;
+}
+.ftt-row{
+  display:flex;align-items:center;gap:.4rem;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:8px;padding:.4rem .55rem;
+}
+.ftt-row-icon{font-size:.85rem;flex-shrink:0;}
+.ftt-row-info{}
+.ftt-row-val{font-size:.82rem;font-weight:500;color:var(--text);line-height:1;}
+.ftt-row-lbl{font-size:.52rem;color:var(--dim);letter-spacing:.06em;margin-top:.05rem;}
+/* Rain probability bar */
+.ftt-rain-wrap{
+  margin-top:.6rem;
+  padding-top:.6rem;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.ftt-rain-hdr{
+  display:flex;justify-content:space-between;
+  font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:.3rem;
+}
+.ftt-rain-track{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;}
+.ftt-rain-fill{height:100%;border-radius:3px;transition:width .5s ease;}
+.ftt-now-badge{
+  display:inline-flex;align-items:center;gap:.3rem;
+  font-size:.52rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);background:rgba(79,195,247,.1);
+  border:1px solid rgba(79,195,247,.25);
+  border-radius:10px;padding:.15rem .45rem;
+  margin-bottom:.55rem;
+}
+/* Crosshair on icon hover */
+.fslot-icon-wrap{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;
+  margin-bottom:.4rem;cursor:crosshair;
+}
+.fslot-icon-wrap::after{
+  content:'';
+  position:absolute;inset:-5px;
+  border-radius:50%;
+  border:1px solid transparent;
+  transition:border-color .2s,box-shadow .2s;
+}
+.fslot:hover .fslot-icon-wrap::after{
+  border-color:rgba(79,195,247,.5);
+  box-shadow:0 0 12px rgba(79,195,247,.3);
+}
+.fslot-icon-cross{
+  position:absolute;opacity:0;transition:opacity .2s;pointer-events:none;
+  color:rgba(79,195,247,.7);font-size:.55rem;font-weight:700;
+  font-family:'Outfit',sans-serif;letter-spacing:.06em;
+  top:-14px;left:50%;transform:translateX(-50%);
+  white-space:nowrap;
+}
+.fslot:hover .fslot-icon-cross{opacity:1;}
+
 /* ── LOADER ── */
 #loader{display:none;margin:3rem 0}
 #loader.active{display:flex;flex-direction:column;align-items:center;gap:1.4rem;animation:fadeIn .3s ease}
@@ -484,7 +727,7 @@ body.is-night{ --sky-tint:rgba(5,10,30,.15); }
 .comfort-desc{font-size:.62rem;color:var(--muted);margin-top:.25rem}
 
 /* ── BOTTOM PANEL (rounded) ── */
-.bottom-panel{border:1px solid var(--border2);border-top:none;border-radius:0 0 28px 28px;background:rgba(255,255,255,.02);backdrop-filter:blur(20px);display:grid;grid-template-columns:1fr 1fr;overflow:hidden}
+.bottom-panel{border:1px solid var(--border2);border-top:none;border-radius:0;background:rgba(255,255,255,.02);backdrop-filter:blur(20px);display:grid;grid-template-columns:1fr 1fr;overflow:hidden}
 .bottom-cell{padding:1.6rem 2rem;border-right:1px solid var(--border)}
 .bottom-cell:last-child{border-right:none}
 .bottom-label{font-size:.52rem;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem}
@@ -536,7 +779,7 @@ body.is-night{ --sky-tint:rgba(5,10,30,.15); }
   .extra-cell:nth-child(2){border-right:none}
   .extra-cell:nth-child(3){border-top:1px solid var(--border)}
   .comfort-panel{grid-template-columns:1fr}
-  .bottom-panel{grid-template-columns:1fr}
+  .bottom-panel{grid-template-columns:1fr;border-radius:0}
   .bottom-cell{border-right:none;border-bottom:1px solid var(--border)}
   .hero-panel{padding:2rem 1.5rem 1.5rem}
   .hero-top{flex-wrap:wrap}
@@ -897,6 +1140,45 @@ body.is-night{ --sky-tint:rgba(5,10,30,.15); }
             <div style="font-size:.62rem;color:var(--muted);margin-top:.2rem" id="pressureDesc">—</div>
           </div>
         </div>
+      </div>
+    </div>
+
+
+    <!-- HOURLY FORECAST -->
+    <div class="section-divider">30-Min Interval Forecast</div>
+    <div class="forecast-panel panel">
+      <div class="forecast-header">
+        <div class="forecast-title">Temperature &amp; Conditions</div>
+        <div class="forecast-tabs">
+          <button class="ftab active" id="ftab1" onclick="setForecastView('temp')">🌡 Temp</button>
+          <button class="ftab" id="ftab2" onclick="setForecastView('rain')">🌧 Rain</button>
+          <button class="ftab" id="ftab3" onclick="setForecastView('wind')">💨 Wind</button>
+          <button class="ftab" id="ftab4" onclick="setForecastView('humidity')">💧 Humidity</button>
+        </div>
+      </div>
+      <!-- Sparkline chart -->
+      <div class="sparkline-wrap">
+        <svg class="sparkline-svg" id="sparklineSvg" viewBox="0 0 800 52" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#4fc3f7" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="#4fc3f7" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path id="sparklineFill" d="" fill="url(#sparkGrad)"/>
+          <path id="sparklineLine" d="" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Current time marker -->
+          <line id="sparklineNow" x1="0" y1="0" x2="0" y2="52" stroke="rgba(79,195,247,.5)" stroke-width="1" stroke-dasharray="3,2"/>
+        </svg>
+      </div>
+      <!-- Slots track -->
+      <div class="forecast-track-wrap">
+        <div class="forecast-track" id="forecastTrack"></div>
+      </div>
+      <!-- Footer bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.9rem 2.2rem 0;margin-top:.4rem;border-top:1px solid rgba(255,255,255,.06)">
+        <span style="font-size:.55rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim)">← Drag to scroll · Hover icons for details →</span>
+        <span style="font-size:.55rem;color:var(--dim);letter-spacing:.08em">Data: WeatherAPI · 48h forecast · 30-min intervals</span>
       </div>
     </div>
 
@@ -1267,6 +1549,291 @@ async function fetchSuggestions(q){
   }
 }
 
+
+/* ══════════════ FORECAST STRIP ══════════════ */
+let _forecastSlots = [];   // all 30-min interpolated slots
+let _forecastView  = 'temp';
+let _forecastNowIdx = 0;
+
+function setForecastView(v){
+  _forecastView = v;
+  ['temp','rain','wind','humidity'].forEach((k,i)=>{
+    document.getElementById('ftab'+(i+1)).classList.toggle('active', k===v);
+  });
+  renderForecastSlots();
+}
+
+// Drag-to-scroll
+(function initDrag(){
+  let isDown=false,startX=0,scrollLeft=0;
+  document.addEventListener('mousedown', e=>{
+    const t=e.target.closest('.forecast-track');
+    if(!t)return;
+    isDown=true; t.classList.add('grabbing');
+    startX=e.pageX-t.offsetLeft; scrollLeft=t.scrollLeft;
+  });
+  document.addEventListener('mousemove', e=>{
+    if(!isDown)return;
+    const t=document.getElementById('forecastTrack'); if(!t)return;
+    e.preventDefault();
+    const x=e.pageX-t.offsetLeft;
+    t.scrollLeft=scrollLeft-(x-startX)*1.2;
+  });
+  document.addEventListener('mouseup',()=>{ isDown=false; document.querySelectorAll('.forecast-track').forEach(t=>t.classList.remove('grabbing')); });
+  // Touch support
+  document.addEventListener('touchstart',e=>{
+    const t=e.target.closest('.forecast-track'); if(!t)return;
+    startX=e.touches[0].pageX; scrollLeft=t.scrollLeft;
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    const t=e.target.closest('.forecast-track'); if(!t)return;
+    const dx=e.touches[0].pageX-startX;
+    t.scrollLeft=scrollLeft-dx;
+  },{passive:true});
+})();
+
+function buildForecastSlots(forecastDays, localtime){
+  // WeatherAPI gives 1-hour slots — we interpolate to 30-min
+  const slots=[];
+  const nowMs = new Date(localtime.replace(' ','T')).getTime();
+
+  forecastDays.forEach((day, di)=>{
+    day.hour.forEach((h, hi)=>{
+      // Full hour slot
+      const hTime = new Date(h.time.replace(' ','T'));
+      slots.push({
+        ms:       hTime.getTime(),
+        time:     hTime,
+        temp_c:   h.temp_c,
+        feelslike_c: h.feelslike_c,
+        icon:     h.condition.icon,
+        cond:     h.condition.text,
+        rain_mm:  h.precip_mm,
+        rain_pct: h.chance_of_rain,
+        wind_kph: h.wind_kph,
+        wind_dir: h.wind_dir,
+        humidity: h.humidity,
+        is_day:   h.is_day,
+        half:     false,
+        dayLabel: di===0 ? 'Today' : 'Tomorrow',
+        newDay:   hi===0
+      });
+      // Half-hour interpolated slot (between this and next)
+      const nextH = day.hour[hi+1] || (forecastDays[di+1] && forecastDays[di+1].hour[0]);
+      if(nextH){
+        const nTime = new Date(nextH.time.replace(' ','T'));
+        const midMs = hTime.getTime() + 30*60*1000;
+        slots.push({
+          ms:       midMs,
+          time:     new Date(midMs),
+          temp_c:   (h.temp_c + nextH.temp_c)/2,
+          feelslike_c: (h.feelslike_c + nextH.feelslike_c)/2,
+          icon:     h.condition.icon,
+          cond:     h.condition.text,
+          rain_mm:  (h.precip_mm + nextH.precip_mm)/2,
+          rain_pct: Math.round((h.chance_of_rain + nextH.chance_of_rain)/2),
+          wind_kph: (h.wind_kph + nextH.wind_kph)/2,
+          wind_dir: h.wind_dir,
+          humidity: Math.round((h.humidity + nextH.humidity)/2),
+          is_day:   h.is_day,
+          half:     true,
+          dayLabel: di===0 ? 'Today' : 'Tomorrow',
+          newDay:   false
+        });
+      }
+    });
+  });
+
+  // Find "now" index — closest slot to current time
+  let nowIdx=0, minDiff=Infinity;
+  slots.forEach((s,i)=>{ const d=Math.abs(s.ms-nowMs); if(d<minDiff){minDiff=d;nowIdx=i;} });
+  _forecastNowIdx = nowIdx;
+  _forecastSlots  = slots;
+}
+
+function renderForecastSlots(){
+  const track = document.getElementById('forecastTrack');
+  if(!track || !_forecastSlots.length) return;
+  track.innerHTML='';
+
+  const v = _forecastView;
+  const vals = _forecastSlots.map(s =>
+    v==='temp'     ? s.temp_c :
+    v==='rain'     ? s.rain_pct :
+    v==='wind'     ? s.wind_kph :
+    s.humidity
+  );
+  const minV = Math.min(...vals), maxV = Math.max(...vals);
+
+  // Build sparkline points
+  const svgW=800, svgH=52, pad=6;
+  const pts = vals.map((val,i)=>{
+    const x = (i/(vals.length-1))*svgW;
+    const y = svgH-pad - ((val-minV)/(maxV-minV||1))*(svgH-pad*2);
+    return {x,y};
+  });
+  const lineD = pts.map((p,i)=> (i===0?`M${p.x},${p.y}`:`L${p.x},${p.y}`)).join(' ');
+  const fillD = lineD + ` L${pts[pts.length-1].x},${svgH} L${pts[0].x},${svgH} Z`;
+  document.getElementById('sparklineLine').setAttribute('d', lineD);
+  document.getElementById('sparklineFill').setAttribute('d', fillD);
+
+  // Now marker on sparkline
+  const nowX = _forecastNowIdx / (vals.length-1) * svgW;
+  document.getElementById('sparklineNow').setAttribute('x1', nowX);
+  document.getElementById('sparklineNow').setAttribute('x2', nowX);
+
+  let lastDay = '';
+  _forecastSlots.forEach((s,i)=>{
+    // Day divider
+    if(s.newDay && i>0){
+      const div=document.createElement('div'); div.className='fday-divider';
+      div.innerHTML=`<span class="fday-label">${s.dayLabel}</span>`;
+      track.appendChild(div);
+    }
+
+    const isNow = i===_forecastNowIdx;
+    const slot=document.createElement('div');
+    slot.className='fslot'+(isNow?' now':'');
+
+    const timeStr = s.time.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:true});
+    const val = vals[i];
+
+    // main value display
+    let mainVal='', unit='', detailRows='';
+    if(v==='temp'){
+      mainVal=Math.round(s.temp_c)+'°';
+      unit='';
+      detailRows=`
+        <div class="fslot-det"><span>💧</span><span>${s.humidity}%</span></div>
+        <div class="fslot-det"><span>💨</span><span>${Math.round(s.wind_kph)}</span></div>`;
+    } else if(v==='rain'){
+      mainVal=s.rain_pct+'%';
+      detailRows=`
+        <div class="fslot-det"><span>mm</span><span>${s.rain_mm.toFixed(1)}</span></div>
+        <div class="fslot-det"><span>💧</span><span>${s.humidity}%</span></div>`;
+    } else if(v==='wind'){
+      mainVal=Math.round(s.wind_kph)+'';
+      unit='km/h';
+      detailRows=`
+        <div class="fslot-det"><span>Dir</span><span>${s.wind_dir}</span></div>
+        <div class="fslot-det"><span>🌡</span><span>${Math.round(s.temp_c)}°</span></div>`;
+    } else {
+      mainVal=s.humidity+'%';
+      detailRows=`
+        <div class="fslot-det"><span>🌡</span><span>${Math.round(s.temp_c)}°</span></div>
+        <div class="fslot-det"><span>💨</span><span>${Math.round(s.wind_kph)}</span></div>`;
+    }
+
+    // Rain chance bar
+    const rainBarW = Math.max(0,Math.min(100,s.rain_pct));
+    const rainBarColor = s.rain_pct>70?'#f06292':s.rain_pct>40?'#4fc3f7':'#4fc3f7';
+
+    slot.innerHTML=`
+      <div class="fslot-time">${timeStr}</div>
+      <div class="fslot-icon-wrap">
+        <span class="fslot-icon-cross">◎</span>
+        <img class="fslot-icon" src="https:${s.icon}" alt="${s.cond}"
+          data-idx="${i}"
+          style="cursor:crosshair"/>
+      </div>
+      <div class="fslot-temp">${mainVal}<span style="font-size:.6rem;color:var(--muted)">${unit}</span></div>
+      <div class="fslot-cond">${s.cond}</div>
+      <div class="fslot-rain"><div class="fslot-rain-fill" style="width:${rainBarW}%;background:${rainBarColor}"></div></div>
+      <div class="fslot-details">${detailRows}</div>`;
+
+    // Tooltip events on the icon
+    const img = slot.querySelector('.fslot-icon');
+    img.addEventListener('mouseenter', e => showForecastTooltip(i, e));
+    img.addEventListener('mousemove',  e => moveForecastTooltip(e));
+    img.addEventListener('mouseleave', hideForecastTooltip);
+
+    track.appendChild(slot);
+  });
+
+  // Scroll "now" slot into center view
+  requestAnimationFrame(()=>{
+    const nowEl = track.querySelector('.fslot.now');
+    if(nowEl){
+      const trackRect = track.getBoundingClientRect();
+      const slotRect  = nowEl.getBoundingClientRect();
+      track.scrollLeft += slotRect.left - trackRect.left - trackRect.width/2 + slotRect.width/2;
+    }
+  });
+}
+
+
+/* ══════════════ FORECAST TOOLTIP ══════════════ */
+let _ttVisible = false;
+
+function showForecastTooltip(idx, e){
+  const s   = _forecastSlots[idx];
+  if(!s) return;
+  const tt  = document.getElementById('fTooltip');
+  const card= document.getElementById('fttCard');
+  const isNow = idx === _forecastNowIdx;
+
+  // Fill content
+  document.getElementById('fttNowBadge').style.display = isNow ? 'inline-flex' : 'none';
+  document.getElementById('fttIcon').src   = 'https:' + s.icon;
+  document.getElementById('fttIcon').alt   = s.cond;
+  const fullDate = s.time.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
+  const fullTime = s.time.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:true});
+  document.getElementById('fttTime').textContent  = fullDate + ' · ' + fullTime + (s.half?' (½hr)':'');
+  document.getElementById('fttCond').textContent  = s.cond;
+  document.getElementById('fttTemp').textContent  = Math.round(s.temp_c) + '°C';
+  document.getElementById('fttFeels').textContent = 'feels like ' + Math.round(s.feelslike_c) + '°C';
+  document.getElementById('fttHumidity').textContent = s.humidity + '%';
+  document.getElementById('fttWind').textContent  = Math.round(s.wind_kph) + ' km/h ' + s.wind_dir;
+  document.getElementById('fttVis').textContent   = (s.vis_km !== undefined ? s.vis_km : '—') + ' km';
+  document.getElementById('fttDew').textContent   = (s.dew_c  !== undefined ? s.dew_c  : '—') + '°C';
+  document.getElementById('fttRainPct').textContent = s.rain_pct + '%';
+  const rainBar = document.getElementById('fttRainBar');
+  rainBar.style.width = s.rain_pct + '%';
+  rainBar.style.background = s.rain_pct>70 ? 'linear-gradient(90deg,#f06292,#e91e63)'
+                           : s.rain_pct>30 ? 'linear-gradient(90deg,#4fc3f7,#00e5ff)'
+                           : 'linear-gradient(90deg,#4caf7d,#4fc3f7)';
+
+  _ttVisible = true;
+  tt.classList.add('show');
+  positionTooltip(tt, e);
+}
+
+function positionTooltip(tt, e){
+  const W = window.innerWidth, H = window.innerHeight;
+  const tw = 260, th = 300; // approx tooltip size
+  let left = e.clientX - tw/2;
+  let top  = e.clientY - th - 18; // above cursor by default
+  const card = document.getElementById('fttCard');
+
+  // Flip below if not enough space above
+  if(top < 8){
+    top = e.clientY + 18;
+    card.classList.add('flip-up');
+  } else {
+    card.classList.remove('flip-up');
+  }
+  // Keep within horizontal bounds
+  left = Math.max(8, Math.min(W - tw - 8, left));
+
+  tt.style.left = left + 'px';
+  tt.style.top  = top  + 'px';
+}
+
+function moveForecastTooltip(e){
+  if(!_ttVisible) return;
+  positionTooltip(document.getElementById('fTooltip'), e);
+}
+
+function hideForecastTooltip(){
+  _ttVisible = false;
+  document.getElementById('fTooltip').classList.remove('show');
+}
+
+function renderForecast(forecastData, localtime){
+  buildForecastSlots(forecastData, localtime);
+  renderForecastSlots();
+}
+
 /* ══════════════ FETCH ══════════════ */
 async function fetchWeather(loc){
   hideSuggestions();
@@ -1274,7 +1841,7 @@ async function fetchWeather(loc){
   document.getElementById('loader').classList.add('active');
   document.getElementById('weatherCard').classList.remove('visible');
   try{
-    const r=await fetch(`https://api.weatherapi.com/v1/current.json?key=${API_KEY}&q=${encodeURIComponent(loc)}&aqi=yes`);
+    const r=await fetch(`https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${encodeURIComponent(loc)}&days=2&aqi=yes&alerts=no`);
     const d=await r.json();
     if(d.error){
       // If error, show suggestions for the bad query
@@ -1459,6 +2026,11 @@ function render(d){
     s.style.animation='none'; void s.offsetWidth;
     s.style.animation=`statPop .55s ${i*.06}s cubic-bezier(.34,1.56,.64,1) both`;
   });
+
+  // ── FORECAST
+  if(d.forecast && d.forecast.forecastday){
+    renderForecast(d.forecast.forecastday, L.localtime);
+  }
 
   document.getElementById('weatherCard').classList.add('visible');
 }
@@ -1681,5 +2253,33 @@ function skipGPS(){
   }
 })();
 </script>
+
+  <!-- FORECAST TOOLTIP -->
+  <div id="fTooltip">
+    <div class="ftt-card" id="fttCard">
+      <div id="fttNowBadge" class="ftt-now-badge" style="display:none">⚡ Current time</div>
+      <div class="ftt-top">
+        <img class="ftt-icon" id="fttIcon" src="" alt=""/>
+        <div class="ftt-info">
+          <div class="ftt-time" id="fttTime">—</div>
+          <div class="ftt-cond" id="fttCond">—</div>
+        </div>
+      </div>
+      <div class="ftt-temp-row">
+        <div class="ftt-temp" id="fttTemp">—°</div>
+        <div class="ftt-feels" id="fttFeels">feels like —°</div>
+      </div>
+      <div class="ftt-grid">
+        <div class="ftt-row"><span class="ftt-row-icon">💧</span><div class="ftt-row-info"><div class="ftt-row-val" id="fttHumidity">—</div><div class="ftt-row-lbl">Humidity</div></div></div>
+        <div class="ftt-row"><span class="ftt-row-icon">💨</span><div class="ftt-row-info"><div class="ftt-row-val" id="fttWind">—</div><div class="ftt-row-lbl">Wind</div></div></div>
+        <div class="ftt-row"><span class="ftt-row-icon">👁</span><div class="ftt-row-info"><div class="ftt-row-val" id="fttVis">—</div><div class="ftt-row-lbl">Visibility</div></div></div>
+        <div class="ftt-row"><span class="ftt-row-icon">🌡</span><div class="ftt-row-info"><div class="ftt-row-val" id="fttDew">—</div><div class="ftt-row-lbl">Dew Point</div></div></div>
+      </div>
+      <div class="ftt-rain-wrap">
+        <div class="ftt-rain-hdr"><span>🌧 Rain Chance</span><span id="fttRainPct">—%</span></div>
+        <div class="ftt-rain-track"><div class="ftt-rain-fill" id="fttRainBar" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
